@@ -1,5 +1,5 @@
 CC ?= cc
-CFLAGS ?= -O2 -std=c11 -Wall -Wextra -Iinclude
+CFLAGS ?= -O2 -std=c11 -Wall -Wextra -D_POSIX_C_SOURCE=200809L -Iinclude
 
 OBJS_COMMON = lib/netif.o lib/protocol.o lib/crc32.o
 
