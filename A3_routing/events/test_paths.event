@@ -1,0 +1,31 @@
+# Path correctness verification - no topology drawing
+0 ADD_NODE 0
+0 ADD_NODE 1
+0 ADD_NODE 2
+0 ADD_NODE 3
+0 ADD_NODE 4
+0 ADD_LINK 0 1 2
+0 ADD_LINK 1 2 2
+0 ADD_LINK 2 3 2
+0 ADD_LINK 1 3 2
+0 ADD_LINK 4 3 2
+
+# Wait for convergence, then check paths
+200 DRAW_PATH 0 4
+200 DRAW_PATH 0 3
+200 DRAW_PATH 0 2
+200 DRAW_PATH 1 4
+
+# Change link 1-3 to 100
+300 CHANGE_LINK 1 3 100
+
+# Wait for reconvergence, then check paths
+500 DRAW_PATH 0 4
+500 DRAW_PATH 1 4
+
+# Delete link 1-2
+600 DELETE_LINK 1 2
+
+# Wait, check paths again
+800 DRAW_PATH 0 4
+800 DRAW_PATH 0 2

@@ -1,0 +1,95 @@
+# ================================================================
+# demo.event — Network Routing Simulation Demo
+# ================================================================
+#
+# Initial topology:
+#
+#   0 ──4── 1
+#   |       |\
+#   3       2  2
+#   |       |    \
+#   2 ──6── 1    (1-3: cost 2)
+#         2-4: cost 2
+#         3-4: cost 5
+#
+#   Nodes : 0, 1, 2, 3, 4
+#   Links : 0-1(4)  0-2(3)  1-2(6)  1-3(2)  2-4(2)  3-4(5)
+#
+# Scenario:
+#   Phase 1  (t=0)    Build initial topology
+#   Phase 2  (t=200)  Baseline — DRAW_TREE 0
+#   Phase 3  (t=300)  CHANGE_LINK 0-1  cost 4→10   (0→1 reroutes via node 2)
+#   Phase 4  (t=600)  ADD_LINK   0-3   cost 1      (shortcut, reshapes many paths)
+#   Phase 5  (t=900)  DELETE_LINK 2-4             (removes 0→4 shortcut via 2)
+#   Phase 6  (t=1200) DELETE_NODE 4               (4 only has one neighbor: safe)
+#
+# Counting-to-infinity analysis:
+#   Phase 3: link cost increases; DV converges in O(diameter) rounds  ✓
+#   Phase 4: link added; costs only decrease, always converges fast    ✓
+#   Phase 5: 0→4 reroutes to 0-3-4=6; only node 3 is direct          ✓
+#            neighbor of 4, so no routing loop for destination 4
+#   Phase 6: node 4 deleted when its only neighbor is 3; node 3       ✓
+#            immediately broadcasts 4=unreachable, no loop possible
+# ================================================================
+
+# ── Phase 1: Build initial topology ─────────────────────────────
+0 ADD_NODE 0
+0 ADD_NODE 1
+0 ADD_NODE 2
+0 ADD_NODE 3
+0 ADD_NODE 4
+0 ADD_LINK 0 1 4
+0 ADD_LINK 0 2 3
+0 ADD_LINK 1 2 6
+0 ADD_LINK 1 3 2
+0 ADD_LINK 2 4 2
+0 ADD_LINK 3 4 5
+
+# ── Phase 2: Baseline routing from node 0 ───────────────────────
+# Shortest paths from 0:
+#   0→1 = 4  (direct)       0→2 = 3  (direct)
+#   0→3 = 6  (0-1-3)        0→4 = 5  (0-2-4)
+200 PRINT Baseline
+200 DRAW_TREE 0
+
+# ── Phase 3: Increase link cost 0-1 (4 → 10) ────────────────────
+# 0→1 reroutes: direct(10) vs 0-2-1(3+6=9) → now via node 2
+# 0→3 reroutes: 0-1-3(12) vs 0-2-1-3(11) vs 0-2-4-3(10) → via 2-4-3
+300 PRINT Change_Link_0-1_cost_10
+300 CHANGE_LINK 0 1 10
+
+500 DRAW_PATH 0 1
+500 DRAW_TREE 0
+
+# ── Phase 4: Add shortcut 0-3 (cost 1) ──────────────────────────
+# 0→3 = 1 (direct shortcut)
+# 0→1 = 3 (0-3-1, much better than 9)
+# 0→4 = 5 (0-2-4 still beats 0-3-4=6)
+600 PRINT Add_Link_0-3_cost_1
+600 ADD_LINK 0 3 1
+
+800 DRAW_PATH 0 1
+800 DRAW_PATH 0 4
+800 DRAW_TREE 0
+
+# ── Phase 5: Delete link 2-4 ────────────────────────────────────
+# After this, node 4's only neighbor is 3
+# 0→4: was 5 (0-2-4), now 6 (0-3-4)
+# No counting-to-infinity: 0→4 reroutes via node 3 directly,
+# and 3→4 = 5 is a stable direct link (no loop)
+900 PRINT Delete_Link_2-4
+900 DELETE_LINK 2 4
+
+1100 DRAW_PATH 0 4
+1100 DRAW_TREE 0
+
+# ── Phase 6: Delete node 4 ──────────────────────────────────────
+# Node 4 has only one neighbor (node 3) at this point.
+# When 4 is deleted, node 3 immediately broadcasts 4=unreachable.
+# All other nodes update cleanly — no routing loop possible.
+# Remaining: nodes 0,1,2,3 with links 0-1(10),0-2(3),0-3(1),1-2(6),1-3(2)
+1200 PRINT Delete_Node_4
+1200 DELETE_NODE 4
+
+1400 DRAW_TREE 0
+1450 DUMP_NODE 0

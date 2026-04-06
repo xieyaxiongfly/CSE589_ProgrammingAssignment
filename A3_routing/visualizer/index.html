@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network Routing Visualizer</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #header {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  #header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    color: #e6edf3;
+  }
+
+  #frame-counter {
+    margin-left: auto;
+    color: #8b949e;
+    font-size: 12px;
+  }
+
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* LEFT PANEL - event log */
+  #left-panel {
+    width: 340px;
+    flex-shrink: 0;
+    background: #161b22;
+    border-right: 1px solid #30363d;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #left-panel .panel-title {
+    padding: 8px 12px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8b949e;
+    border-bottom: 1px solid #30363d;
+    flex-shrink: 0;
+  }
+
+  #event-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+
+  #event-log::-webkit-scrollbar { width: 6px; }
+  #event-log::-webkit-scrollbar-track { background: transparent; }
+  #event-log::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+  .log-item {
+    padding: 5px 12px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background 0.1s;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .log-item:hover { background: #1c2128; }
+
+  .log-item.active {
+    background: #1c2128;
+    border-left-color: #388bfd;
+  }
+
+  .log-item .log-time {
+    font-size: 10px;
+    color: #8b949e;
+    font-family: monospace;
+  }
+
+  .log-item .log-label {
+    font-size: 12px;
+    font-weight: 500;
+    font-family: monospace;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .badge-correct { background: #1a4a2e; color: #3fb950; }
+  .badge-incorrect { background: #4a1a1a; color: #f85149; }
+
+  /* event type colors */
+  .et-ADD_NODE    { color: #3fb950; }
+  .et-ADD_LINK    { color: #3fb950; }
+  .et-DELETE_NODE { color: #f85149; }
+  .et-DELETE_LINK { color: #f85149; }
+  .et-CHANGE_LINK { color: #d29922; }
+  .et-DRAW_PATH   { color: #a371f7; }
+  .et-DRAW_TREE   { color: #a371f7; }
+  .et-DUMP_NODE   { color: #388bfd; }
+  .et-PRINT       { color: #8b949e; }
+
+  /* RIGHT: graph + info */
+  #right-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #network-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ---- Single view ---- */
+  #single-view {
+    width: 100%;
+    height: 100%;
+  }
+
+  #network {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ---- Dual view ---- */
+  #dual-view {
+    display: none;
+    width: 100%;
+    height: 100%;
+    flex-direction: column;
+  }
+
+  #dual-view.active {
+    display: flex;
+  }
+
+  .graph-label-bar {
+    display: flex;
+    height: 28px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    flex-shrink: 0;
+  }
+
+  .graph-label {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .graph-label-correct {
+    color: #3fb950;
+    border-right: 1px solid #30363d;
+  }
+
+  .graph-label-student {
+    color: #8b949e;
+  }
+
+  .graph-label-student.has-errors {
+    color: #f85149;
+  }
+
+  .dual-networks {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .dual-pane {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .dual-pane + .dual-pane {
+    border-left: 1px solid #30363d;
+  }
+
+  #network-left, #network-right {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ---- Node detail panel ---- */
+  #node-detail-panel {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: min(420px, calc(100% - 32px));
+    max-height: calc(100% - 32px);
+    overflow: auto;
+    background: rgba(22, 27, 34, 0.96);
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+    padding: 12px 14px;
+    z-index: 10;
+    display: none;
+    backdrop-filter: blur(10px);
+  }
+
+  #node-detail-panel.visible {
+    display: block;
+  }
+
+  #node-detail-panel pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #c9d1d9;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .node-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .node-detail-title {
+    color: #e6edf3;
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .node-detail-subtitle {
+    color: #8b949e;
+    font-size: 11px;
+    margin-bottom: 10px;
+  }
+
+  .node-detail-close {
+    background: transparent;
+    border: 1px solid #30363d;
+    color: #8b949e;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .node-detail-close:hover {
+    color: #e6edf3;
+    border-color: #8b949e;
+    background: #21262d;
+  }
+
+  .node-detail-empty {
+    color: #8b949e;
+    font-style: italic;
+  }
+
+  /* INFO PANEL */
+  #info-panel {
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    padding: 10px 16px;
+    min-height: 80px;
+    max-height: 180px;
+    overflow-y: auto;
+    flex-shrink: 0;
+    font-family: monospace;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  #info-panel::-webkit-scrollbar { height: 6px; width: 6px; }
+  #info-panel::-webkit-scrollbar-track { background: transparent; }
+  #info-panel::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+  #info-panel .info-empty { color: #8b949e; font-style: italic; }
+
+  .path-correct { color: #3fb950; }
+  .path-student-ok { color: #3fb950; }
+  .path-student-bad { color: #f85149; }
+  .verdict-ok { color: #3fb950; font-weight: bold; }
+  .verdict-bad { color: #f85149; font-weight: bold; }
+  .info-section { margin-bottom: 6px; }
+  .info-label { color: #8b949e; margin-right: 6px; }
+
+  /* BOTTOM CONTROLS */
+  #controls {
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .ctrl-btn {
+    background: #21262d;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+    padding: 4px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.1s, border-color 0.1s;
+    user-select: none;
+  }
+
+  .ctrl-btn:hover { background: #30363d; border-color: #8b949e; }
+  .ctrl-btn:active { background: #3c424c; }
+  .ctrl-btn.play-active { border-color: #388bfd; color: #388bfd; }
+
+  #progress-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: #21262d;
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+  }
+
+  #progress-bar-fill {
+    height: 100%;
+    background: #388bfd;
+    border-radius: 3px;
+    pointer-events: none;
+    transition: width 0.1s;
+  }
+
+  #frame-label {
+    color: #8b949e;
+    font-size: 12px;
+    white-space: nowrap;
+    min-width: 70px;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>Network Routing Visualizer</h1>
+  <span id="live-badge" style="display:none;background:#4a1a00;color:#f0883e;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:0.05em;">● LIVE</span>
+  <div id="frame-counter">Loading...</div>
+</div>
+
+<div id="main">
+  <!-- Left: event log -->
+  <div id="left-panel">
+    <div class="panel-title">Event Log</div>
+    <div id="event-log"></div>
+  </div>
+
+  <!-- Right: graph + info -->
+  <div id="right-panel">
+    <div id="network-container">
+
+      <!-- Single-graph view (default) -->
+      <div id="single-view">
+        <div id="network"></div>
+      </div>
+
+      <!-- Dual-graph view: shown when draw_path/draw_tree is incorrect -->
+      <div id="dual-view">
+        <div class="graph-label-bar">
+          <div class="graph-label graph-label-correct">&#10003; Correct</div>
+          <div class="graph-label graph-label-student" id="student-graph-label">Current (Incorrect)</div>
+        </div>
+        <div class="dual-networks">
+          <div class="dual-pane">
+            <div id="network-left"></div>
+          </div>
+          <div class="dual-pane">
+            <div id="network-right"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="node-detail-panel" aria-live="polite"></div>
+    </div>
+    <div id="info-panel">
+      <span class="info-empty">Select an event to see details.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom playback controls -->
+<div id="controls">
+  <button class="ctrl-btn" id="btn-prev">&#9664; Prev</button>
+  <button class="ctrl-btn" id="btn-play">&#9654; Play</button>
+  <button class="ctrl-btn" id="btn-next">Next &#9654;</button>
+  <div id="progress-bar-wrap" id="progress-wrap">
+    <div id="progress-bar-fill"></div>
+  </div>
+  <div id="frame-label">0 / 0</div>
+</div>
+
+<script>
+// ---- DATA ----
+const LIVE_MODE = false;  // replaced with true by web server for live mode
+const TRACE = "__TRACE_DATA__";
+let frames = (!LIVE_MODE && TRACE) ? (TRACE.frames || []) : [];
+let N = frames.length;
+
+// ---- STATE ----
+let currentIndex = -1;
+let playing = false;
+let playTimer = null;
+let networkReady = false;
+let selectedNodeId = null;
+let isDualView = false;
+
+// ---- VIS.JS SETUP ----
+const networkOptions = {
+  nodes: {
+    shape: 'circle',
+    size: 30,
+    color: { background: '#1f6feb', border: '#388bfd', highlight: { background: '#388bfd', border: '#58a6ff' } },
+    font: { color: '#e6edf3', size: 18, face: 'monospace' },
+    borderWidth: 2,
+  },
+  edges: {
+    color: { color: '#4d5560', highlight: '#8b949e' },
+    width: 2,
+    font: { color: '#e6edf3', size: 16, face: 'monospace', strokeWidth: 3, strokeColor: '#0d1117', background: 'none' },
+    smooth: false,
+  },
+  physics: { enabled: false },
+  interaction: { hover: true, tooltipDelay: 200 },
+};
+
+// Main (single-view) network
+const visNodes = new vis.DataSet();
+const visEdges = new vis.DataSet();
+const network = new vis.Network(
+  document.getElementById('network'),
+  { nodes: visNodes, edges: visEdges },
+  networkOptions
+);
+
+// Dual-view networks (lazy-initialized on first use)
+let leftNetwork = null, leftNodes = null, leftEdges = null;
+let rightNetwork = null, rightNodes = null, rightEdges = null;
+
+function ensureDualNetworks() {
+  if (!leftNetwork) {
+    leftNodes = new vis.DataSet();
+    leftEdges = new vis.DataSet();
+    leftNetwork = new vis.Network(
+      document.getElementById('network-left'),
+      { nodes: leftNodes, edges: leftEdges },
+      networkOptions
+    );
+  }
+  if (!rightNetwork) {
+    rightNodes = new vis.DataSet();
+    rightEdges = new vis.DataSet();
+    rightNetwork = new vis.Network(
+      document.getElementById('network-right'),
+      { nodes: rightNodes, edges: rightEdges },
+      networkOptions
+    );
+  }
+}
+
+// ---- VIEW SWITCHER ----
+function switchView(dual) {
+  const singleEl = document.getElementById('single-view');
+  const dualEl = document.getElementById('dual-view');
+  if (dual === isDualView) return;
+  isDualView = dual;
+  if (dual) {
+    singleEl.style.display = 'none';
+    dualEl.classList.add('active');
+    ensureDualNetworks();
+  } else {
+    singleEl.style.display = '';
+    dualEl.classList.remove('active');
+    // Force the single network to redraw after container is visible
+    setTimeout(() => { try { network.redraw(); network.fit(); } catch(e) {} }, 0);
+  }
+}
+
+// ---- HELPERS ----
+
+function edgeId(u, v) {
+  return u < v ? `${u}-${v}` : `${v}-${u}`;
+}
+
+/**
+ * Apply a snapshot to a specific vis.Network instance.
+ *
+ * highlightInfo: { type: 'path'|'tree', source, dest?, green_edges, red_edges }
+ *   green_edges / red_edges: arrays of [u,v] pairs to highlight
+ */
+function applySnapshotTo(snapshot, highlightInfo, net, nodesDS, edgesDS) {
+  if (!snapshot) return;
+
+  const nodeIds = new Set(snapshot.nodes.map(n => n.id));
+  const edgeMap = {};
+  for (const e of snapshot.edges) {
+    edgeMap[edgeId(e.from, e.to)] = e;
+  }
+
+  // --- Nodes ---
+  const nodeUpdates = [];
+  const existingNodeIds = new Set(nodesDS.getIds());
+
+  for (const n of snapshot.nodes) {
+    const nid = n.id;
+    let color = { background: '#1f6feb', border: '#388bfd' };
+    let size = 30;
+
+    if (highlightInfo) {
+      if (highlightInfo.type === 'path') {
+        if (nid === highlightInfo.source || nid === highlightInfo.dest) {
+          color = { background: '#7d5ba6', border: '#a371f7' };
+          size = 36;
+        }
+      } else if (highlightInfo.type === 'tree') {
+        if (nid === highlightInfo.source) {
+          color = { background: '#7d5ba6', border: '#a371f7' };
+          size = 36;
+        }
+      }
+    }
+
+    const nodeData = { id: nid, label: String(nid), color, size };
+    if (existingNodeIds.has(nid)) {
+      nodeUpdates.push(nodeData);
+    } else {
+      nodesDS.add(nodeData);
+    }
+  }
+  if (nodeUpdates.length) nodesDS.update(nodeUpdates);
+
+  for (const eid of existingNodeIds) {
+    if (!nodeIds.has(eid)) nodesDS.remove(eid);
+  }
+
+  // --- Edges ---
+  const edgeUpdates = [];
+  const existingEdgeIds = new Set(edgesDS.getIds());
+
+  for (const key of Object.keys(edgeMap)) {
+    const e = edgeMap[key];
+    let color = '#4d5560';
+    let width = 2;
+
+    if (highlightInfo) {
+      const fwd = [e.from, e.to];
+      const onGreen = edgeInPath(fwd, highlightInfo.green_edges);
+      const onRed   = edgeInPath(fwd, highlightInfo.red_edges);
+      if (onGreen)      { color = '#3fb950'; width = 4; }
+      else if (onRed)   { color = '#f85149'; width = 4; }
+    }
+
+    const edata = {
+      id: key,
+      from: e.from,
+      to: e.to,
+      label: String(e.latency),
+      color: { color, highlight: color },
+      width,
+    };
+
+    if (existingEdgeIds.has(key)) {
+      edgeUpdates.push(edata);
+    } else {
+      edgesDS.add(edata);
+    }
+  }
+  if (edgeUpdates.length) edgesDS.update(edgeUpdates);
+
+  for (const eid of existingEdgeIds) {
+    if (!(eid in edgeMap)) edgesDS.remove(eid);
+  }
+
+  // Apply pre-computed positions
+  if (snapshot.positions && Object.keys(snapshot.positions).length > 0) {
+    for (const n of snapshot.nodes) {
+      const p = snapshot.positions[n.id];
+      if (p) {
+        try { net.moveNode(n.id, p.x, p.y); } catch(e) {}
+      }
+    }
+  }
+  net.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+}
+
+// Convenience wrapper for the main single-view network
+function applySnapshot(snapshot, highlightInfo) {
+  applySnapshotTo(snapshot, highlightInfo, network, visNodes, visEdges);
+}
+
+function edgeInPath(e, edgeSet) {
+  if (!edgeSet) return false;
+  for (const [u, v] of edgeSet) {
+    if ((e[0] === u && e[1] === v) || (e[0] === v && e[1] === u)) return true;
+  }
+  return false;
+}
+
+function pathToEdges(path) {
+  if (!path || path.length < 2) return [];
+  const edges = [];
+  for (let i = 0; i < path.length - 1; i++) edges.push([path[i], path[i+1]]);
+  return edges;
+}
+
+function formatPath(path, length) {
+  if (!path || path.length === 0) return '(none)';
+  const lStr = length === -1 ? 'inf' : length;
+  return `[${path.join(' \u2192 ')}]  (length=${lStr})`;
+}
+
+// ---- HIGHLIGHT BUILDERS ----
+
+function buildSingleHighlight(frame) {
+  if (frame.type === 'draw_path') {
+    const ce = pathToEdges(frame.correct_path);
+    const se = pathToEdges(frame.student_path);
+    const isCorrect = frame.correct_length === frame.student_length;
+    return {
+      type: 'path',
+      source: frame.source,
+      dest: frame.dest,
+      green_edges: ce,
+      red_edges: isCorrect ? [] : se,
+    };
+  } else if (frame.type === 'draw_tree') {
+    const green = [], red = [];
+    for (const p of (frame.paths || [])) {
+      green.push(...pathToEdges(p.correct_path));
+      if (!p.is_correct) red.push(...pathToEdges(p.student_path));
+    }
+    return { type: 'tree', source: frame.source, green_edges: green, red_edges: red };
+  }
+  return null;
+}
+
+function buildLeftHighlight(frame) {
+  // Correct graph: only correct edges, all green
+  if (frame.type === 'draw_path') {
+    return {
+      type: 'path',
+      source: frame.source,
+      dest: frame.dest,
+      green_edges: pathToEdges(frame.correct_path),
+      red_edges: [],
+    };
+  } else if (frame.type === 'draw_tree') {
+    const green = [];
+    for (const p of (frame.paths || [])) green.push(...pathToEdges(p.correct_path));
+    return { type: 'tree', source: frame.source, green_edges: green, red_edges: [] };
+  }
+  return null;
+}
+
+function buildRightHighlight(frame) {
+  // Student graph: correct student edges green, wrong student edges red
+  if (frame.type === 'draw_path') {
+    const se = pathToEdges(frame.student_path);
+    const isCorrect = frame.correct_length === frame.student_length;
+    return {
+      type: 'path',
+      source: frame.source,
+      dest: frame.dest,
+      green_edges: isCorrect ? se : [],
+      red_edges: isCorrect ? [] : se,
+    };
+  } else if (frame.type === 'draw_tree') {
+    const green = [], red = [];
+    for (const p of (frame.paths || [])) {
+      if (p.is_correct) green.push(...pathToEdges(p.student_path));
+      else red.push(...pathToEdges(p.student_path));
+    }
+    return { type: 'tree', source: frame.source, green_edges: green, red_edges: red };
+  }
+  return null;
+}
+
+function isFrameIncorrect(frame) {
+  if (frame.type === 'draw_path') return frame.correct_length !== frame.student_length;
+  if (frame.type === 'draw_tree') return (frame.paths || []).some(p => !p.is_correct);
+  return false;
+}
+
+// ---- NODE DETAIL ----
+
+function findLatestDumpForNode(nodeId, index) {
+  for (let i = index; i >= 0; i--) {
+    const frame = frames[i];
+    if (frame.type === 'dump_node' && frame.node_id === nodeId) {
+      return frame;
+    }
+  }
+  return null;
+}
+
+function hideNodeDetails() {
+  selectedNodeId = null;
+  const panel = document.getElementById('node-detail-panel');
+  panel.classList.remove('visible');
+  panel.innerHTML = '';
+}
+
+function renderSelectedNodeDetails() {
+  const panel = document.getElementById('node-detail-panel');
+  if (selectedNodeId === null || currentIndex < 0 || currentIndex >= N) {
+    hideNodeDetails();
+    return;
+  }
+
+  const frame = frames[currentIndex];
+  const snapshot = frame.snapshot;
+  const hasNode = snapshot && snapshot.nodes && snapshot.nodes.some(n => n.id === selectedNodeId);
+  if (!hasNode) {
+    hideNodeDetails();
+    return;
+  }
+
+  const liveDump = snapshot.node_details ? snapshot.node_details[selectedNodeId] : null;
+  const dumpFrame = liveDump ? null : findLatestDumpForNode(selectedNodeId, currentIndex);
+  const subtitle = liveDump
+    ? `Live state at T=${frame.time}`
+    : dumpFrame
+      ? `Latest DUMP_NODE at T=${dumpFrame.time}`
+      : `No node state available for node ${selectedNodeId} in this trace.`;
+
+  const body = liveDump
+    ? `<pre>${escHtml(liveDump)}</pre>`
+    : dumpFrame
+      ? `<pre>${escHtml(dumpFrame.dump_str || '')}</pre>`
+      : `<div class="node-detail-empty">No node details were recorded for this frame.</div>`;
+
+  panel.innerHTML = `
+    <div class="node-detail-header">
+      <div class="node-detail-title">Node ${escHtml(String(selectedNodeId))}</div>
+      <button class="node-detail-close" type="button" aria-label="Close node details">&times;</button>
+    </div>
+    <div class="node-detail-subtitle">${escHtml(subtitle)}</div>
+    ${body}
+  `;
+  panel.classList.add('visible');
+  panel.querySelector('.node-detail-close').addEventListener('click', hideNodeDetails);
+}
+
+// ---- RENDER FRAME ----
+function renderFrame(index) {
+  if (index < 0 || index >= N) return;
+  currentIndex = index;
+  const frame = frames[index];
+
+  // Update log highlight
+  document.querySelectorAll('.log-item').forEach((el, i) => {
+    el.classList.toggle('active', i === index);
+  });
+  const logItem = document.querySelector(`.log-item[data-index="${index}"]`);
+  if (logItem) logItem.scrollIntoView({ block: 'nearest' });
+
+  const incorrect = isFrameIncorrect(frame);
+  const needsDual = incorrect && (frame.type === 'draw_path' || frame.type === 'draw_tree');
+
+  if (needsDual) {
+    switchView(true);
+    // Update student label color
+    const lbl = document.getElementById('student-graph-label');
+    lbl.classList.add('has-errors');
+    lbl.textContent = 'Current (Incorrect)';
+
+    const leftHL  = buildLeftHighlight(frame);
+    const rightHL = buildRightHighlight(frame);
+    applySnapshotTo(frame.snapshot, leftHL,  leftNetwork,  leftNodes,  leftEdges);
+    applySnapshotTo(frame.snapshot, rightHL, rightNetwork, rightNodes, rightEdges);
+  } else {
+    switchView(false);
+    const highlightInfo = buildSingleHighlight(frame);
+    applySnapshot(frame.snapshot, highlightInfo);
+  }
+
+  renderInfo(frame);
+  renderSelectedNodeDetails();
+
+  // Update progress
+  const pct = N > 1 ? (index / (N - 1)) * 100 : 0;
+  document.getElementById('progress-bar-fill').style.width = pct + '%';
+  document.getElementById('frame-label').textContent = `${index + 1} / ${N}`;
+  document.getElementById('frame-counter').textContent = `Frame ${index + 1} of ${N}`;
+}
+
+function renderInfo(frame) {
+  const panel = document.getElementById('info-panel');
+  let html = '';
+
+  if (frame.type === 'draw_path') {
+    const isCorrect = frame.correct_length === frame.student_length;
+    const verdict = isCorrect
+      ? '<span class="verdict-ok">CORRECT</span>'
+      : '<span class="verdict-bad">INCORRECT</span>';
+
+    html += `<div class="info-section">`;
+    html += `<span class="info-label">DRAW_PATH</span> `;
+    html += `${frame.source} &rarr; ${frame.dest} &nbsp; ${verdict}`;
+    html += `</div>`;
+    html += `<div class="info-section path-correct">`;
+    html += `<span class="info-label">Correct:</span>${escHtml(formatPath(frame.correct_path, frame.correct_length))}`;
+    html += `</div>`;
+    const studentClass = isCorrect ? 'path-student-ok' : 'path-student-bad';
+    html += `<div class="info-section ${studentClass}">`;
+    html += `<span class="info-label">Student:</span>${escHtml(formatPath(frame.student_path, frame.student_length))}`;
+    html += `</div>`;
+
+  } else if (frame.type === 'draw_tree') {
+    const allCorrect = (frame.paths || []).every(p => p.is_correct);
+    const verdict = allCorrect
+      ? '<span class="verdict-ok">CORRECT</span>'
+      : '<span class="verdict-bad">INCORRECT</span>';
+    html += `<div class="info-section">`;
+    html += `<span class="info-label">DRAW_TREE</span> source=${frame.source} &nbsp; ${verdict}`;
+    html += `</div>`;
+    for (const p of (frame.paths || [])) {
+      if (!p.is_correct) {
+        html += `<div class="info-section path-student-bad">`;
+        html += `  ${p.from} &rarr; ${p.to}: `;
+        html += `correct=${escHtml(formatPath(p.correct_path, p.correct_length))} `;
+        html += `student=${escHtml(formatPath(p.student_path, p.student_length))}`;
+        html += `</div>`;
+      }
+    }
+
+  } else if (frame.type === 'dump_node') {
+    html += `<div class="info-section"><span class="info-label">DUMP_NODE ${frame.node_id}</span></div>`;
+    html += `<pre style="color:#8b949e;white-space:pre-wrap;">${escHtml(frame.dump_str || '')}</pre>`;
+
+  } else if (frame.type === 'print') {
+    html += `<div class="info-section"><span class="info-label">PRINT</span>${escHtml(frame.message || '')}</div>`;
+
+  } else if (frame.type === 'topology_event') {
+    html += `<div class="info-section"><span class="info-label">${escHtml(frame.event_type)}</span>`;
+    html += `args: ${escHtml(JSON.stringify(frame.args))}`;
+    html += `</div>`;
+  } else {
+    html = '<span class="info-empty">No details for this event.</span>';
+  }
+
+  panel.innerHTML = html || '<span class="info-empty">No details for this event.</span>';
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ---- BUILD EVENT LOG ----
+function buildLogItem(i) {
+  const frame = frames[i];
+  const item = document.createElement('div');
+  item.className = 'log-item';
+  item.dataset.index = i;
+
+  let typeClass = 'et-' + (frame.event_type || frame.type || '').toUpperCase();
+  let label = '';
+  let badge = '';
+
+  if (frame.type === 'topology_event') {
+    typeClass = 'et-' + frame.event_type;
+    label = frame.event_type + (frame.args && frame.args.length ? ' ' + frame.args.join(' ') : '');
+  } else if (frame.type === 'draw_path') {
+    typeClass = 'et-DRAW_PATH';
+    const ok = frame.correct_length === frame.student_length;
+    label = `DRAW_PATH ${frame.source} ${frame.dest}`;
+    badge = ok
+      ? '<span class="badge badge-correct">correct</span>'
+      : '<span class="badge badge-incorrect">incorrect</span>';
+  } else if (frame.type === 'draw_tree') {
+    typeClass = 'et-DRAW_TREE';
+    const allOk = (frame.paths || []).every(p => p.is_correct);
+    label = `DRAW_TREE ${frame.source}`;
+    badge = allOk
+      ? '<span class="badge badge-correct">correct</span>'
+      : '<span class="badge badge-incorrect">incorrect</span>';
+  } else if (frame.type === 'dump_node') {
+    typeClass = 'et-DUMP_NODE';
+    label = `DUMP_NODE ${frame.node_id}`;
+  } else if (frame.type === 'print') {
+    typeClass = 'et-PRINT';
+    label = 'PRINT ' + (frame.message || '').substring(0, 30);
+  }
+
+  item.innerHTML = `
+    <div class="log-time">[T=${frame.time}]</div>
+    <div class="log-label ${typeClass}">${escHtml(label)} ${badge}</div>
+  `;
+  item.addEventListener('click', () => { stopPlay(); renderFrame(i); });
+  return item;
+}
+
+function buildLog() {
+  const log = document.getElementById('event-log');
+  log.innerHTML = '';
+  for (let i = 0; i < frames.length; i++) log.appendChild(buildLogItem(i));
+}
+
+function appendLogItems(startIdx) {
+  const log = document.getElementById('event-log');
+  for (let i = startIdx; i < frames.length; i++) log.appendChild(buildLogItem(i));
+}
+
+// ---- PLAYBACK ----
+function prevFrame() {
+  if (currentIndex > 0) renderFrame(currentIndex - 1);
+}
+
+function nextFrame() {
+  if (currentIndex < N - 1) renderFrame(currentIndex + 1);
+  else stopPlay();
+}
+
+function startPlay() {
+  if (playing) return;
+  playing = true;
+  document.getElementById('btn-play').textContent = '\u23F8 Pause';
+  document.getElementById('btn-play').classList.add('play-active');
+  function tick() {
+    if (!playing) return;
+    nextFrame();
+    if (currentIndex < N - 1) {
+      playTimer = setTimeout(tick, 800);
+    } else {
+      stopPlay();
+    }
+  }
+  playTimer = setTimeout(tick, 800);
+}
+
+function stopPlay() {
+  playing = false;
+  if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+  document.getElementById('btn-play').textContent = '\u25B6 Play';
+  document.getElementById('btn-play').classList.remove('play-active');
+}
+
+function togglePlay() {
+  if (playing) stopPlay(); else startPlay();
+}
+
+// ---- PROGRESS BAR CLICK ----
+document.getElementById('progress-bar-wrap').addEventListener('click', function(e) {
+  if (N === 0) return;
+  const rect = this.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const idx = Math.round(ratio * (N - 1));
+  stopPlay();
+  renderFrame(idx);
+});
+
+// ---- BUTTON EVENTS ----
+document.getElementById('btn-prev').addEventListener('click', () => { stopPlay(); prevFrame(); });
+document.getElementById('btn-next').addEventListener('click', () => { stopPlay(); nextFrame(); });
+document.getElementById('btn-play').addEventListener('click', togglePlay);
+
+network.on('click', function(params) {
+  if (params.nodes && params.nodes.length > 0) {
+    selectedNodeId = params.nodes[0];
+    renderSelectedNodeDetails();
+  } else {
+    hideNodeDetails();
+  }
+});
+
+// ---- KEYBOARD ----
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowLeft') { stopPlay(); prevFrame(); }
+  else if (e.key === 'ArrowRight') { stopPlay(); nextFrame(); }
+  else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+});
+
+// ---- INIT ----
+if (LIVE_MODE) {
+  document.getElementById('live-badge').style.display = 'inline';
+  document.getElementById('frame-counter').textContent = 'Waiting for simulation...';
+
+  let pollActive = true;
+
+  function pollFrames() {
+    if (!pollActive) return;
+    fetch('/api/frames')
+      .then(r => r.json())
+      .then(data => {
+        const prevN = N;
+        const incoming = data.frames;
+
+        if (incoming.length > prevN) {
+          for (let i = prevN; i < incoming.length; i++) frames.push(incoming[i]);
+          N = frames.length;
+
+          if (prevN === 0) {
+            buildLog();
+            renderFrame(0);
+          } else {
+            appendLogItems(prevN);
+            if (currentIndex === prevN - 1) renderFrame(N - 1);
+            document.getElementById('frame-label').textContent = `${currentIndex + 1} / ${N}`;
+            document.getElementById('frame-counter').textContent = `Frame ${currentIndex + 1} of ${N}`;
+          }
+        }
+
+        if (data.done) {
+          pollActive = false;
+          const badge = document.getElementById('live-badge');
+          badge.textContent = '\u2713 DONE';
+          badge.style.background = '#1a4a2e';
+          badge.style.color = '#3fb950';
+        } else {
+          setTimeout(pollFrames, 300);
+        }
+      })
+      .catch(() => setTimeout(pollFrames, 1000));
+  }
+
+  pollFrames();
+
+} else {
+  buildLog();
+  if (N > 0) {
+    renderFrame(0);
+  } else {
+    document.getElementById('frame-counter').textContent = 'No frames';
+    document.getElementById('info-panel').innerHTML = '<span class="info-empty">No trace data found.</span>';
+  }
+}
+</script>
+</body>
+</html>

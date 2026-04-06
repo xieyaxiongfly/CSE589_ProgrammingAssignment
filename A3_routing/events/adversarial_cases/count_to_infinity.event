@@ -1,0 +1,55 @@
+# ================================================================
+# count_to_infinity.event
+# Minimal 3-node chain designed to trigger count-to-infinity.
+#
+# Topology:
+#   0 --1-- 1 --1-- 2
+#
+# After convergence (t=100):
+#   Node 0: dv[2]=2 via Node 1
+#   Node 1: dv[2]=1 direct; dv[0]=1 direct
+#   Node 2: dv[0]=2 via Node 1; dv[1]=1 direct
+#
+# At t=200: DELETE_LINK 1 2
+#   Node 1 loses direct link to 2.
+#   Node 1 checks neighbors — only Node 0, which still advertises dv[2]=2.
+#   Node 1 concludes: "I can reach 2 via 0 at cost 1+2=3"  ← WRONG (loop)
+#
+# The storm (link latency=1, each round = 1 time unit):
+#   t=200  Node 1 sets dv[2]=3,   broadcasts to Node 0
+#   t=201  Node 0 sets dv[2]=4,   broadcasts to Node 1
+#   t=202  Node 1 sets dv[2]=5,   broadcasts to Node 0
+#   ...    increments by 1 each hop until cost >= INFINITY (500)
+#   t≈697  both nodes finally mark 2 as unreachable
+#
+# Expected message count (with split horizon / poison reverse: ~5):
+#   Without fix: ~500+ messages just from the loop
+# ================================================================
+
+# ── Phase 1: Build topology ──────────────────────────────────────
+0 ADD_LINK 0 1 1
+0 ADD_LINK 1 2 1
+
+# ── Phase 2: Verify baseline after convergence ───────────────────
+100 PRINT Baseline
+100 DRAW_PATH 0 2
+100 DRAW_PATH 1 2
+100 DRAW_TREE 0
+
+# ── Phase 3: Delete link 1-2 — count-to-infinity begins ─────────
+200 PRINT Delete_Link_1-2__storm_begins
+200 DELETE_LINK 1 2
+
+# Mid-storm snapshot: Node 1 and Node 0 should show inflated dv[2]
+# At t=350, ~150 rounds in — expect dv[2] around 150-155
+350 PRINT Mid-storm_snapshot
+350 DUMP_NODE 0
+350 DUMP_NODE 1
+
+# ── Phase 4: After storm settles (t≈697, check at t=900) ─────────
+# Node 2 is still in the topology but isolated.
+# Correct answer: no path exists from 0→2 or 1→2.
+# DV nodes should also report unreachable (dv[2] hit INFINITY=500).
+900 PRINT Post-storm
+900 DUMP_NODE 0
+900 DUMP_NODE 1
