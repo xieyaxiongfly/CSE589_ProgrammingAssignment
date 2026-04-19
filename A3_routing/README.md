@@ -320,6 +320,49 @@ Sample event files are provided in the `events/` directory.
 
 ---
 
+## Submission
+
+Package your submission as a **zip file** with the following structure:
+
+```
+<UBITname1>[_UBITname2...]_A3.zip
+├── report.pdf
+└── A3_routing/          ← the entire project directory
+    ├── distance_vector_node.py
+    ├── distance_vector_split_horizon_node.py
+    ├── sim.py
+    ├── run_tests.py
+    ├── events/
+    ├── simulator/
+    └── ...
+```
+
+If you work in a team, include **all team members' UBITnames** in the zip file name (e.g., `jsmith_jdoe_A3.zip`).
+
+### Report (`report.pdf`)
+
+Run both algorithms against the graded test suite (`case_1` through `case_9`) and include the full output in your report:
+
+```bash
+python run_tests.py DV events/testing_suite/
+python run_tests.py DV_SH events/testing_suite/
+```
+
+The results are also saved to `output/test_results_DV.txt` and `output/test_results_DV_SH.txt`.
+
+You are **not required to pass all test cases** — report whatever results you achieve.
+
+Your report should include:
+
+1. **Test results** — the pass/fail summary table for both DV and DV_SH.
+2. **Performance analysis** — for each algorithm, examine the output and discuss:
+   - The **number of messages sent** across cases — which cases generate more traffic and why?
+   - The **convergence time** — which cases take longer to stabilize and what causes that?
+   - How **DV and DV_SH compare** on the same cases — does split horizon with poisoned reverse reduce message count or convergence time, and in which scenarios does it help most?
+3. **Failure analysis** — for any test case that does not pass, briefly explain what you think causes the incorrect result.
+
+---
+
 ## Project Structure
 
 For a detailed explanation of what each file does, its interface, and its internal logic, see [doc/codebase.md](doc/codebase.md).
