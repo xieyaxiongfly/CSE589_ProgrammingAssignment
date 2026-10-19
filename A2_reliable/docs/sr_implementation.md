@@ -48,8 +48,13 @@ At a high level:
 
 If you implement this, be careful not to trigger unnecessary retransmissions on normal reordering.
 
+This part is optional and not graded. If you do implement it, your `sender_sr` must accept a
+`--fast_retx` flag that turns the behavior on — the test scripts pass exactly that flag when you
+run `--mode sr_fast` (see `scripts/run_reliable.py` and `scripts/run_reliable_one.py`), so a
+different flag name will not work. Without the flag, `sender_sr` should behave as plain SR.
+
 ## Where to Look
 
 - Packet format and helpers: `include/protocol.h` and `lib/protocol.c`  
 - Socket‑like API: `include/netif.h` and `lib/netif.c`  
-- Project notes: `SR_GUIDE.md`
+- Project overview and testing instructions: `README.md`

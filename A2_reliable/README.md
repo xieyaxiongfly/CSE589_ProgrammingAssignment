@@ -55,7 +55,8 @@ Correctness comes first. Passing a single transfer is required before performanc
   - `scripts/test_local.sh`: local smoke test.
   - `scripts/run_reliable.py`: batch test runner.
   - `docs/scripts_guide.md`: detailed script usage.
-  - `GBN_GUIDE.md` and `SR_GUIDE.md`: protocol guidance and state machine notes.
+  - `docs/gbn_implementation.md` and `docs/sr_implementation.md`: protocol guidance and
+    state machine notes.
   - `docs/library_overview.md`: overview of provided libraries and headers.
 
 ## Build
@@ -191,7 +192,9 @@ python scripts/run_reliable.py --mode sr
 python scripts/process_reliable_results.py
 ```
 
-SR (fast retransmit):
+SR with fast retransmit (**optional**, and only if your sender accepts `--fast_retx`; see
+"Fast Retransmit (Optional)" in `docs/sr_implementation.md`). If you did not implement it,
+skip this mode — the sender will reject the unknown flag:
 ```bash
 python scripts/run_reliable.py --mode sr_fast
 python scripts/process_reliable_results.py
@@ -201,16 +204,57 @@ Results are written under `tmp_reliable/` as JSONL files and plots.
 Correctness in the batch tests is recorded as `hash_ok` in `tmp_reliable/results.jsonl`
 (`1` means correct, `0` means incorrect).
 
-## Report Requirements
+## Submission
+
+Package your submission as a **zip file** with the following structure:
+
+```
+<UBITname1>[_UBITname2...]_A2.zip
+├── report.pdf
+└── A2_reliable/              ← the entire project directory
+    ├── sender_gbn.c
+    ├── receiver_gbn.c
+    ├── sender_sr.c
+    ├── receiver_sr.c
+    ├── Makefile
+    ├── lib/
+    ├── include/
+    ├── scripts/
+    ├── emulator.py
+    ├── tmp_reliable/
+    │   ├── results.jsonl     ← keep: your measured results
+    │   └── plots/            ← keep: the plots used in your report
+    └── ...
+```
+
+If you work in a team, include **all team members' UBITnames** in the zip file name
+(e.g., `jsmith_jdoe_A2.zip`). Submit **one** zip per team.
+
+Before zipping:
+- Run `make clean` so no binaries or object files are included.
+- Keep `tmp_reliable/results.jsonl` and `tmp_reliable/plots/` — we use them to check that
+  the numbers and curves in your report come from real runs.
+- Delete the bulky run artifacts: `recv.bin`, `tmp_reliable/input.bin`,
+  `tmp_reliable/outputs/`, and `tmp_reliable/logs/`.
+- Verify that `make` builds cleanly from the submitted folder.
+
+Your code must compile and run with the provided `Makefile`, `emulator.py`, and scripts
+unmodified. Do not rename files or change the command-line parameters.
+
+### Report (`report.pdf`)
 
 Your report should include:
 
+- Student information: full name, UBITname, student ID, and email for every team member.
 - The plots produced by `scripts/process_reliable_results.py` for GBN and SR
   (goodput and retransmission rate vs loss, delay, and window size).
 - A correctness summary (e.g., a table or paragraph showing that `hash_ok=1`
   for your test runs and noting any failing scenarios).
 - A short analysis of why each curve looks the way it does.
 - A discussion of whether your results are reasonable and what they imply about your implementation.
+- If you implemented the optional fast retransmit, include the `sr_fast` plots and compare
+  them against plain SR; otherwise state that you did not attempt it. This part is optional
+  and not graded.
 
 What the plots mean:
 
@@ -231,7 +275,7 @@ Use these trends to sanity‑check your implementation. If your plots look unrea
 - CRC32 is validated on every packet; invalid packets should be dropped.
 - Handle duplicates, timeouts, and retransmissions correctly.
 - Use FIN/FINACK to close the transfer cleanly.
-- Follow the state machines in `GBN_GUIDE.md` and `SR_GUIDE.md`.
+- Follow the state machines in `docs/gbn_implementation.md` and `docs/sr_implementation.md`.
 
 ## netif API Quick Guide
 

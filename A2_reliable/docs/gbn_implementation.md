@@ -39,4 +39,4 @@ The receiver is simpler:
 
 - Packet format and helpers: `include/protocol.h` and `lib/protocol.c`  
 - Socket‑like API: `include/netif.h` and `lib/netif.c`  
-- Project notes: `GBN_GUIDE.md`
+- Project overview and testing instructions: `README.md`
